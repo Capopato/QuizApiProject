@@ -1,95 +1,81 @@
-// /**
-//  * Quiz app
-//  *
-//  * Action plan:
-//  * Make a file/function that fetches questions from an api
-//  * console.log the question and ask the user for input
-//  * check if input is the correct answer
-//  * go to next question
-//  *
-//  * When making the API call the response is X amount of question + answers
-//  * Action plan:
-//  * make a class
-//  * make a function for the API call or import it
-//  * make a [] for storing the API call data
-//  * make a function that only displays the question + all the available answers.
-//  * make a prompt-sync function to ask user for input to choose from 1 of the answers
-//  * compare the input to the correct answer
-//  * score point if won
-//  *
-//  * make while loop to iterate over all the question. When all the questions are done ask if you want to play another round to get new question.
-//  * To proceed do the following: make 1 API call and store the data in a []
-//  *
-//  *
-//  */
-
-import { questionModel } from "./models/question.model";
 import axios from "axios";
+import { quizModel } from "./models/quiz.model";
+import { questionModel } from "./models/question.model";
 import promptSync from "prompt-sync";
+import e from "express";
 
 const prompt = promptSync();
 
-export class Quiz {
-  questionData: questionModel[];
-  running: boolean;
-  round: number;
-  readyToAnswer: boolean;
-  scoreCorrect: number;
-  scoreInCorrect: number;
-  playRound: boolean;
+export class Quiz implements quizModel {
+  // roundOfQuestions: any;
+  roundOfQuestions: questionModel[];
+  gameIsRunning: boolean;
+  roundIsRunning: boolean;
+  scoreRight: number;
+  scoreWrong: number;
   constructor() {
-    this.questionData = [];
-    this.running = true;
-    this.round = 0;
-    this.readyToAnswer = false;
-    this.scoreCorrect = 0;
-    this.scoreInCorrect = 0;
-    this.playRound = true;
+    (this.roundOfQuestions = []), (this.gameIsRunning = true), (this.roundIsRunning = true), (this.scoreRight = 0), (this.scoreWrong = 0);
   }
 
-  public async getData() {
+  public async getQuizData(): Promise<void> {
     const url = "https://the-trivia-api.com/api/questions";
     const response = await axios.get(url);
-    const relevantData: questionModel[] = response.data;
+    const quizData = [];
+    quizData.push(...response.data);
 
-    this.questionData.push(...relevantData);
+    for (let i = 0; i < quizData.length; i++) {
+      const question = quizData[i].question;
+      const correctAnswer = quizData[i].correctAnswer;
+      let allAnswer = quizData[i].correctAnswer + "," + quizData[i].incorrectAnswers;
+      let allAnswers: string[] = allAnswer.split(",");
+      this.roundOfQuestions.push({ question: question, correctAnswer: correctAnswer, allAnswers: allAnswers });
+    }
+    // console.log(this.roundOfQuestions[1]);
   }
 
-  public async runQuiz() {
-    await this.getData();
-    const question = this.questionData[this.round].question;
-    const possibleAnswers = this.questionData[this.round].incorrectAnswers + "," + this.questionData[this.round].correctAnswer;
-    const correctAnswers = this.questionData[this.round].correctAnswer;
+  public async playRound(): Promise<void> {
+    await this.getQuizData();
+    for (let i = 0; i < this.roundOfQuestions.length; i++) {
+      // for (let i = 0; i < 2; i++) {
+      console.log(`Question: ${this.roundOfQuestions[i].question}`);
+      console.log(`Possible answers: ${this.roundOfQuestions[i].allAnswers}`);
+      console.log("\n");
 
-    console.log("\n");
-    console.log(question);
-    console.log(possibleAnswers);
-    console.log("\n");
+      while (true) {
+        const answer = prompt("Your answer: ");
+        console.log("\n");
+        if (!this.roundOfQuestions[i].allAnswers.includes(answer)) {
+          console.log("Please select 1 of the 4 answers.");
+        } else if (answer == this.roundOfQuestions[i].correctAnswer) {
+          this.scoreRight += 1;
+          console.log("That is correct!");
+          break;
+        } else if (answer != this.roundOfQuestions[i].correctAnswer) {
+          this.scoreWrong += 1;
+          console.log("That is incorrect!");
+          break;
+        }
+      }
+      console.log("\n");
 
-    const answer = prompt("Answer: ");
-
-    if (answer == correctAnswers) {
-      this.scoreCorrect += 1;
-      console.log("That is correct!");
-    } else {
-      this.scoreInCorrect += 1;
-      console.log("That is incorrect!");
-    }
-    this.round += 1;
-
-    if (this.round == 18) {
-      console.log(`You have ${this.scoreCorrect} questions right and ${this.scoreInCorrect} questions wrong.`);
+      while (true && i == this.roundOfQuestions.length - 1) {
+        // if (i == this.roundOfQuestions.length - 1) {
+        const playAgain = prompt("Do you want to play again: ").toLowerCase();
+        if (playAgain == "yes") {
+          this.playRound();
+          break;
+        } else if (playAgain == "no") {
+          console.log(`You had ${this.scoreRight} questions right and ${this.scoreWrong} questions wrong.`);
+          break;
+        } else {
+          console.log("Please type 'Yes' of 'No'");
+          // }
+        }
+      }
     }
   }
 }
 
 const game = new Quiz();
-
-for (let i = 0; i < 9; i++) {
-  game.playRound = true;
-  while (game.playRound == true) {
-    game.runQuiz();
-    game.playRound = false;
-    game.round += 1;
-  }
-}
+game.getQuizData();
+game.playRound();
